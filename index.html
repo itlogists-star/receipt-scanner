@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>G-BiACK Receipt Scanner</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f4f8; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .card {
+      background: #fff; border-radius: 20px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 32px 28px; max-width: 440px; width: 100%;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+    .logo-icon {
+      width: 42px; height: 42px; background: #1a7f4b; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .logo-text { font-size: 20px; font-weight: 700; color: #1a1a1a; }
+    .logo-sub { font-size: 12px; color: #6b7280; margin-top: 1px; }
+    .upload-area {
+      border: 2px dashed #d1d5db; border-radius: 14px; padding: 32px 20px;
+      text-align: center; cursor: pointer; transition: all 0.2s;
+      margin-bottom: 20px; position: relative; background: #fafafa;
+    }
+    .upload-area:hover, .upload-area.dragover { border-color: #1a7f4b; background: #f0fdf4; }
+    .upload-area input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 40px; margin-bottom: 10px; }
+    .upload-title { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+    .upload-sub { font-size: 13px; color: #6b7280; }
+    #preview-wrap {
+      display: none; position: relative; margin-bottom: 20px;
+      border-radius: 14px; overflow: hidden; border: 1.5px solid #e5e7eb;
+    }
+    #preview-wrap img { width: 100%; max-height: 220px; object-fit: cover; display: block; }
+    #preview-wrap .remove-btn {
+      position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.55);
+      color: #fff; border: none; border-radius: 20px; padding: 4px 12px;
+      font-size: 12px; cursor: pointer;
+    }
+    label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+    select, input[type="text"] {
+      width: 100%; padding: 10px 14px; border: 1.5px solid #d1d5db;
+      border-radius: 10px; font-size: 14px; color: #111827; background: #fff;
+      outline: none; transition: border 0.2s; margin-bottom: 16px; appearance: none;
+    }
+    select:focus, input[type="text"]:focus { border-color: #1a7f4b; }
+    .select-wrap { position: relative; }
+    .select-wrap::after {
+      content: "▾"; position: absolute; right: 14px; top: 50%;
+      transform: translateY(-65%); pointer-events: none; color: #6b7280; font-size: 14px;
+    }
+    .submit-btn {
+      width: 100%; padding: 13px; background: #1a7f4b; color: #fff; border: none;
+      border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;
+      transition: background 0.2s, transform 0.1s; margin-top: 4px;
+    }
+    .submit-btn:hover { background: #15693e; }
+    .submit-btn:active { transform: scale(0.98); }
+    .submit-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+    #status {
+      display: none; margin-top: 18px; padding: 14px 16px; border-radius: 10px;
+      font-size: 14px; font-weight: 500; text-align: center;
+    }
+    #status.loading { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    #status.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    #status.error   { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid #bfdbfe; border-top-color: #1d4ed8;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .divider { border: none; border-top: 1px solid #f3f4f6; margin: 18px 0; }
+    .note { font-size: 11.5px; color: #9ca3af; text-align: center; margin-top: 16px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">🧾</div>
+    <div>
+      <div class="logo-text">Receipt Scanner</div>
+      <div class="logo-sub">G-BiACK — Snap → categorise → done</div>
+    </div>
+  </div>
+
+  <div class="upload-area" id="upload-area">
+    <input type="file" id="file-input" accept="image/*" capture="environment" />
+    <div class="upload-icon">📷</div>
+    <div class="upload-title">Take a photo or upload</div>
+    <div class="upload-sub">Tap here on your phone to use camera</div>
+  </div>
+
+  <div id="preview-wrap">
+    <img id="preview-img" src="" alt="Receipt preview"/>
+    <button class="remove-btn" onclick="removeImage()">✕ Remove</button>
+  </div>
+
+  <label for="category">Category</label>
+  <div class="select-wrap">
+    <select id="category">
+      <option value="">— Select a category —</option>
+      <option>Construction</option>
+      <option>Kitchen</option>
+      <option>Livestock</option>
+      <option>Supermarket</option>
+      <option>Fuel</option>
+      <option>Motorbike Maintenance</option>
+      <option>Transport</option>
+      <option>Textile</option>
+      <option>Office</option>
+      <option>Seed Bank</option>
+      <option>Education</option>
+      <option>Garden</option>
+      <option>Vehicle Maintenance</option>
+      <option>Welding</option>
+      <option>House Keeping</option>
+      <option>Electricals</option>
+      <option>Medical / Students</option>
+      <option>General Centre Expenditure</option>
+      <option>Outreach</option>
+      <option>Other</option>
+    </select>
+  </div>
+
+  <label for="submitter">Your Name</label>
+  <input type="text" id="submitter" placeholder="e.g. Jane Wanjiku" />
+
+  <label for="note">Note (optional)</label>
+  <input type="text" id="note" placeholder="e.g. bought for main store room" />
+
+  <hr class="divider"/>
+  <button class="submit-btn" id="submit-btn" onclick="submitReceipt()">Submit Receipt</button>
+  <div id="status"></div>
+  <p class="note">Your photo is sent securely. No data is stored on this page.</p>
+</div>
+
+<script>
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyny7o-6MairYBfeCyBexpaBxZfY_O3DGEZjb_BMxcB1iQvS_GZfRcNIPqnJ2Ul2gT7yg/exec";
+
+  const fileInput   = document.getElementById("file-input");
+  const previewWrap = document.getElementById("preview-wrap");
+  const previewImg  = document.getElementById("preview-img");
+  const uploadArea  = document.getElementById("upload-area");
+  const statusDiv   = document.getElementById("status");
+  const submitBtn   = document.getElementById("submit-btn");
+
+  fileInput.addEventListener("change", function () {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      previewImg.src = e.target.result;
+      previewWrap.style.display = "block";
+      uploadArea.style.display  = "none";
+    };
+    reader.readAsDataURL(file);
+  });
+
+  uploadArea.addEventListener("dragover",  e => { e.preventDefault(); uploadArea.classList.add("dragover"); });
+  uploadArea.addEventListener("dragleave", ()  => uploadArea.classList.remove("dragover"));
+  uploadArea.addEventListener("drop", e => {
+    e.preventDefault();
+    uploadArea.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) {
+      fileInput.files = e.dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change"));
+    }
+  });
+
+  function removeImage() {
+    previewWrap.style.display = "none";
+    uploadArea.style.display  = "block";
+    fileInput.value           = "";
+    previewImg.src            = "";
+  }
+
+  function showStatus(msg, type) {
+    statusDiv.style.display = "block";
+    statusDiv.className     = type;
+    statusDiv.innerHTML     = type === "loading"
+      ? `<span class="spinner"></span>${msg}`
+      : msg;
+  }
+
+  // Resize + compress image before sending to avoid low memory errors on phones
+  function compressImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = e => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          // Max dimension 1200px — enough for Gemini to read any receipt clearly
+          const MAX = 1200;
+          let w = img.width, h = img.height;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else        { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          // 0.82 quality JPEG — sharp enough to read text, small enough for phones
+          const dataURL = canvas.toDataURL("image/jpeg", 0.82);
+          resolve(dataURL.split(",")[1]);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function submitReceipt() {
+    const file      = fileInput.files[0];
+    const category  = document.getElementById("category").value;
+    const note      = document.getElementById("note").value.trim();
+    const submitter = document.getElementById("submitter").value.trim();
+
+    if (!file)     { showStatus("⚠️ Please choose a receipt photo first.", "error"); return; }
+    if (!category) { showStatus("⚠️ Please select a category.", "error"); return; }
+
+    submitBtn.disabled = true;
+    showStatus("Uploading receipt…", "loading");
+
+    try {
+      showStatus("Compressing image…", "loading");
+      const base64 = await compressImage(file);
+
+      const payload = {
+        imageData : base64,
+        mimeType  : "image/jpeg",  // always jpeg after compression
+        fileName  : file.name,
+        category  : category,
+        note      : note,
+        submitter : submitter
+      };
+
+      // Use no-cors — Apps Script runs fully server-side, we just fire and confirm
+      await fetch(APPS_SCRIPT_URL, {
+        method  : "POST",
+        body    : JSON.stringify(payload),
+        headers : { "Content-Type": "text/plain;charset=utf-8" },
+        mode    : "no-cors",
+        redirect: "follow"
+      });
+
+      showStatus("⏳ Processing with AI… please wait (~20 s).", "loading");
+
+      setTimeout(() => {
+        showStatus("✅ Done! Saved to Drive and recorded in the sheet.", "success");
+        removeImage();
+        document.getElementById("category").value  = "";
+        document.getElementById("note").value      = "";
+        document.getElementById("submitter").value = "";
+        submitBtn.disabled = false;
+      }, 20000);
+
+    } catch (err) {
+      showStatus("❌ Error: " + err.message, "error");
+      submitBtn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
